@@ -11,7 +11,7 @@ This demo is separate from the core UEBA modeling pipeline and is intended
 for demonstration, validation, and presentation purposes.
 
 Demo Architecture Overview
-```test
+```
 [ Windows VM Users ]
         │
         │  (Sysmon / Security Logs)
@@ -32,23 +32,23 @@ Demo Architecture Overview
 Components
 1. VMware Virtual Machines
 
-Multiple Windows VMs simulate different users in an internal organization
+- Multiple Windows VMs simulate different users in an internal organization
 
-Each VM represents:
+- Each VM represents:
+        
+- A distinct user account
 
-A distinct user account
+- Different behavior patterns (normal vs anomalous)
 
-Different behavior patterns (normal vs anomalous)
+- Logs are generated from:
 
-Logs are generated from:
+- Logon activity
 
-Logon activity
+- File access
 
-File access
+- HTTP activity
 
-HTTP activity
-
-Device usage (optional)
+- Device usage (optional)
 
 ⚠️ VM images are not included in this repository.
 
@@ -58,11 +58,11 @@ File: demo/ingest_gateway.py
 
 Responsibilities:
 
-Receive logs from agents via HTTP
+- Receive logs from agents via HTTP
 
-Validate and normalize incoming log records
+- Validate and normalize incoming log records
 
-Write logs into a central staging area for UEBA processing
+- Write logs into a central staging area for UEBA processing
 
 This component simulates a lightweight SIEM ingest layer in an enterprise
 environment.
@@ -73,17 +73,17 @@ File: demo/dashboard.py
 
 Responsibilities:
 
-Serve processed UEBA results
+- Serve processed UEBA results
 
-Expose APIs for:
+- Expose APIs for:
 
-Top-K anomalous users / days
+- Top-K anomalous users / days
 
-Anomaly scores
+-  Anomaly scores
 
-Evaluation metrics
+-  Evaluation metrics
 
-Act as the backend for the HTML dashboard
+- Act as the backend for the HTML dashboard
 
 This backend is not production-grade and is intentionally simplified for
 demo clarity.
@@ -94,13 +94,13 @@ Location: dashboard/index.html
 
 Features:
 
-Overview of detected anomalies
+- Overview of detected anomalies
 
-Ranked list of suspicious user-days
+- Ranked list of suspicious user-days
 
-Visualization of anomaly scores
+- Visualization of anomaly scores
 
-SOC-oriented view focused on investigation, not alert flooding
+- SOC-oriented view focused on investigation, not alert flooding
 
 The dashboard is implemented using static HTML + JavaScript and served by
 the demo backend.
@@ -119,13 +119,14 @@ The gateway listens for log events sent by agents.
 
 3. Generate Logs
 
-Log agents (VM or local simulation) send JSON events to the ingest gateway
+- Log agents (VM or local simulation) send JSON events to the ingest gateway
 
-Logs are stored and prepared for preprocessing
+- Logs are stored and prepared for preprocessing
 
 Agent scripts and VM configuration details are documented in /docs
 
 4. Run UEBA Pipeline (Core)
+```
 python src/preprocessing/normalize_logs.py
 python src/preprocessing/merge_logs.py
 
@@ -136,6 +137,7 @@ python src/modeling/train_isolation_forest.py
 python src/modeling/score_isolation_forest.py
 
 python src/evaluation/evaluate_isolation_forest.py
+```
 
 5. Launch Dashboard Backend
 python demo/dashboard.py
@@ -149,52 +151,52 @@ Demo Scenarios
 
 Typical demo scenarios include:
 
-Excessive after-hours logins
+- Excessive after-hours logins
 
-Sudden spikes in file access
+- Sudden spikes in file access
 
-Cross-machine login behavior
+- Cross-machine login behavior
 
-Abnormal HTTP destinations
+- Abnormal HTTP destinations
 
-Multi-day gradual behavior drift
+- Multi-day gradual behavior drift
 
 Each scenario:
 
-Appears legitimate in isolation
+- Appears legitimate in isolation
 
-Becomes suspicious only when analyzed behaviorally
+- Becomes suspicious only when analyzed behaviorally
 
 SOC Relevance
 
 This demo reflects realistic SOC workflows:
 
-No signature-based detection
+- No signature-based detection
 
-No fixed thresholds
+- No fixed thresholds
 
-Analyst-driven Top-K investigation
+- Analyst-driven Top-K investigation
 
-Emphasis on alert quality, not alert volume
+- Emphasis on alert quality, not alert volume
 
 The UEBA system acts as a behavioral analytics layer on top of SIEM.
 
 Limitations
 
-Simplified VMware setup
+- Simplified VMware setup
 
-Lightweight, non-persistent agents
+- Lightweight, non-persistent agents
 
-Batch-oriented processing (not real-time)
+- Batch-oriented processing (not real-time)
 
-Synthetic / simulated user behavior
+- Synthetic / simulated user behavior
 
 Disclaimer
 
-This demo is intended for educational and portfolio purposes only.
+This demo is intended for educational and portfolio purposes only. 
 
-No real organizational data is included
+- No real organizational data is included
 
-No confidential systems are replicated
+- No confidential systems are replicated
 
-Not intended for production deployment
+- Not intended for production deployment

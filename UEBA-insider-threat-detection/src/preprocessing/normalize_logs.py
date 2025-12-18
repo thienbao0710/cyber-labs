@@ -1,4 +1,4 @@
-"python src\chuan_hoa_logs.py --in-dir data\cert --out data\clear_logs\logs_std.parquet -v"
+"python src\normalize_logs.py --in-dir data\cert --out data\clear_logs\logs_std.parquet -v"
 import argparse
 from pathlib import Path
 import pandas as pd

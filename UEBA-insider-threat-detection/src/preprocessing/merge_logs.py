@@ -1,4 +1,4 @@
-"python src\merge_incoming_csvs.py --in-root data_user --out-dir demo\data_clear"
+"python src\merge_logs.py --in-root data_user --out-dir demo\data_clear"
 from pathlib import Path
 import argparse
 import pandas as pd

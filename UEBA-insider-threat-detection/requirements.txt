@@ -1,0 +1,47 @@
+# ===== CORE: data & ML =====
+numpy>=1.24,<2.2
+pandas>=2.0,<2.3
+pyarrow>=14,<18
+scikit-learn>=1.3,<1.6
+joblib>=1.3,<2.0
+tqdm>=4.66,<5.0
+
+# ===== FAST ETL / STORAGE =====
+duckdb>=1.0,<2.0
+polars>=1.7,<1.11
+
+# ===== LOG PARSING =====
+lxml>=5.2,<6.0
+python-evtx>=0.7,<1.0
+dnspython>=2.4,<3.0
+apache-log-parser>=1.7,<2.0
+tldextract>=5.1,<6.0
+publicsuffix2>=2.20191221,<3.0
+pywin32>=306; platform_system=="Windows"
+
+# ===== CONFIG & VALIDATION =====
+pandera>=0.20,<0.21
+pyyaml>=6.0,<7.0
+
+# ===== DASHBOARD =====
+streamlit>=1.36,<1.40
+matplotlib>=3.8,<3.10
+plotly>=5.18   # <===== BỔ SUNG
+
+# ===== ML - AUTOENCODER =====
+tensorflow>=2.12   # <===== BỔ SUNG quan trọng (hoặc torch)
+
+# ===== SYSTEM / UTILS =====
+typer[all]>=0.12,<0.13
+rich>=13.7,<14.0
+loguru>=0.7,<0.8
+APScheduler>=3.10,<4.0
+
+# ===== LAB TRAFFIC (optional) =====
+Flask>=3.0,<4.0
+uvicorn>=0.30,<0.32
+waitress>=3.0,<4.0
+locust>=2.29,<3.0
+
+# ===== TRANSFER VM -> HOST =====
+paramiko>=3.4,<4.0

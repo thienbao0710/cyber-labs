@@ -1,12 +1,12 @@
 # demo_api.py - Backend Flask cho HTML dashboard demo (UEBA)
 # Chức năng:
-#   - Serve file index.html trong html_dashboard/
-#   - Serve CSV/Parquet trong thư mục demo/
+#   - Serve file index.html trong dashboard/
+#   - Serve CSV/Parquet trong thư mục data/
 #   - API POST /run_pipeline để chạy pipeline demo:
-#       1) merge_incoming_csvs.py
-#       2) chuan_hoa_logs.py
-#       3) features_v3.py
-#       4) score_iforest.py
+#       1) merge_logs.py
+#       2) normalize_logs.py
+#       3) build_user_day_features.py
+#       4) score_isolation_forest.py
 
 import os
 import sys

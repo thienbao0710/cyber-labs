@@ -1,0 +1,2465 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>UEBA Live Monitor – Insider Threat Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Bootstrap -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
+
+  <!-- Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <!-- PapaParse -->
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+
+  <style>
+    /* --- LIGHT MODE THEME --- */
+    :root {
+      --bg-body: #f8fafc;
+      /* Xám rất nhạt (Slate-50) */
+      --bg-card: #ffffff;
+      /* Trắng tinh */
+      --text-main: #1e293b;
+      /* Xám đen (Slate-800) */
+      --text-muted: #64748b;
+      /* Xám vừa (Slate-500) */
+      --border-color: #e2e8f0;
+      /* Viền nhạt */
+      --primary-color: #0f766e;
+      /* Teal-700 */
+    }
+
+    body {
+      background-color: var(--bg-body);
+      color: var(--text-main);
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+
+    /* CARD & SHADOW */
+    .card {
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 0.75rem;
+      box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+    }
+
+    .card-header {
+      background-color: transparent;
+      border-bottom: 1px solid var(--border-color);
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    /* NAVBAR */
+    .main-navbar {
+      background: linear-gradient(135deg, #0f766e, #115e59);
+      padding: 0.8rem 1.5rem;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+
+    .tab-big {
+      color: rgba(255, 255, 255, 0.85);
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid transparent;
+      padding: 8px 20px;
+      border-radius: 99px;
+      font-weight: 500;
+      font-size: 0.9rem;
+      transition: all 0.2s;
+    }
+
+    .tab-big:hover {
+      background: rgba(255, 255, 255, 0.2);
+      color: #fff;
+    }
+
+    .tab-big.active {
+      background: #fff;
+      color: #0f766e;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      font-weight: 700;
+    }
+
+    /* TABLE STYLING */
+    .table {
+      --bs-table-bg: transparent;
+      --bs-table-color: var(--text-main);
+      border-color: var(--border-color);
+      font-size: 0.85rem;
+    }
+
+    .table thead th {
+      background-color: #f1f5f9;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      font-size: 0.75rem;
+      letter-spacing: 0.05em;
+      border-bottom: 2px solid var(--border-color);
+      font-weight: 700;
+    }
+
+    /* Xóa class table-dark bị lỗi */
+    .table-dark {
+      color: inherit;
+      background-color: transparent;
+    }
+
+    th.sortable {
+      cursor: pointer;
+    }
+
+    th.sortable i {
+      font-size: 0.7rem;
+    }
+
+    /* BADGES */
+    .badge {
+      padding: 0.5em 0.75em;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+
+    .bg-danger {
+      background-color: #fee2e2 !important;
+      color: #dc2626 !important;
+      border: 1px solid #fecaca;
+    }
+
+    .bg-warning {
+      background-color: #ffedd5 !important;
+      color: #ea580c !important;
+      border: 1px solid #fed7aa;
+    }
+
+    .bg-secondary {
+      background-color: #f1f5f9 !important;
+      color: #64748b !important;
+      border: 1px solid #e2e8f0;
+    }
+
+    /* MODAL */
+    .modal-content {
+      border: none;
+      border-radius: 1rem;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+    }
+
+    .modal-header {
+      border-bottom: 1px solid var(--border-color);
+      background-color: #f8fafc;
+      border-radius: 1rem 1rem 0 0;
+    }
+
+    /* UTILS */
+    .pipeline-btn,
+    .refresh-btn {
+      border-radius: 99px;
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+
+    .pipeline-btn:hover,
+    .refresh-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+    }
+
+    .table-active-custom {
+      background-color: #e0f2fe !important;
+    }
+
+    .sortable-header .sort-indicator {
+      font-size: 0.7rem;
+      opacity: 0.6;
+    }
+  </style>
+
+</head>
+
+<body>
+
+  <!-- ================= NAVBAR ================= -->
+  <nav class="main-navbar d-flex align-items-center justify-content-between">
+    <!-- LEFT: TAB BUTTONS -->
+    <div class="d-flex align-items-center gap-2">
+      <button class="tab-big active" data-tab="tabOverview">
+        <i class="fa-solid fa-gauge-high"></i> Live Overview
+      </button>
+
+      <button class="tab-big" data-tab="tabUser">
+        <i class="fa-solid fa-user-secret"></i> User Drill-down
+      </button>
+
+      <button class="tab-big" data-tab="tabAlerts">
+        <i class="fa-solid fa-bell"></i> Alerts
+      </button>
+      <button class="tab-big" data-tab="tabLogs">
+        <i class="fa-solid fa-file-lines"></i> Log Viewer
+      </button>
+    </div>
+
+    <!-- RIGHT: ACTION BUTTONS -->
+    <div class="d-flex align-items-center gap-2">
+      <button id="runPipelineBtn" class="btn btn-sm pipeline-btn">
+        <i class="fa-solid fa-gears"></i> Chạy pipeline
+      </button>
+
+      <button id="refreshBtn" class="btn btn-sm refresh-btn">
+        <i class="fa-solid fa-rotate"></i> Refresh
+      </button>
+    </div>
+  </nav>
+
+  <div class="container-fluid mt-4">
+
+    <!-- =============== TAB: OVERVIEW =============== -->
+    <div id="tabOverview" class="tab-pane">
+
+      <div class="row mb-3">
+        <div class="col-12">
+          <div class="card shadow-sm border-0">
+            <div class="card-body d-flex flex-wrap align-items-center gap-3 py-3">
+              <div>
+                <div class="toolbar-label fw-bold text-secondary small">User</div>
+                <select id="userFilter_ov" class="form-select form-select-sm" style="min-width: 150px;">
+                  <option value="__ALL__">(Tất cả)</option>
+                </select>
+              </div>
+              <div>
+                <div class="toolbar-label fw-bold text-secondary small">Từ ngày</div>
+                <input type="date" id="startDate_ov" class="form-control form-control-sm" />
+              </div>
+              <div>
+                <div class="toolbar-label fw-bold text-secondary small">Đến ngày</div>
+                <input type="date" id="endDate_ov" class="form-control form-control-sm" />
+              </div>
+              <div>
+                <div class="toolbar-label fw-bold text-secondary small">Top-K</div>
+                <input type="number" id="topK_ov" min="5" max="200" step="5" value="20"
+                  class="form-control form-control-sm" style="width: 80px;" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="kpiRow" class="row mb-4">
+        <div class="col-12 col-md-3 mb-2">
+          <div class="card bg-primary text-white h-100 border-0 shadow-sm">
+            <div class="card-body">
+              <div class="text-white-50 small text-uppercase fw-bold">User hoạt động</div>
+              <div id="kpiTotalUsers" class="h2 mb-0 fw-bold mt-2">--</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-12 col-md-3 mb-2">
+          <div class="card bg-danger text-white h-100 border-0 shadow-sm">
+            <div class="card-body">
+              <div class="text-white-50 small text-uppercase fw-bold">User cảnh báo</div>
+              <div id="kpiAlertUsers" class="h2 mb-0 fw-bold mt-2">--</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-12 col-md-3 mb-2">
+          <div class="card h-100 border-0 shadow-sm border-start border-4 border-warning">
+            <div class="card-body">
+              <div class="text-muted small text-uppercase fw-bold">Alert High/Med/Low</div>
+              <div id="kpiAlertCounts" class="h4 mb-0 fw-bold text-dark mt-2">-- / -- / --</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-12 col-md-3 mb-2">
+          <div class="card h-100 border-0 shadow-sm border-start border-4 border-info">
+            <div class="card-body">
+              <div class="text-muted small text-uppercase fw-bold">Khoảng ngày</div>
+              <div id="kpiDateRange" class="h6 mb-0 text-dark mt-2">-- → --</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row mb-4">
+        <div class="col-12 col-lg-4 mb-3 mb-lg-0">
+          <div class="card h-100 shadow-sm border-0">
+            <div class="card-header bg-white fw-bold border-bottom-0 pt-3">
+              <i class="fa-solid fa-chart-pie text-primary me-2"></i>Tỉ lệ mức độ rủi ro
+            </div>
+            <div class="card-body d-flex align-items-center justify-content-center">
+              <div style="width: 100%; height: 220px;">
+                <canvas id="severityChart"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12 col-lg-8">
+          <div class="card h-100 shadow-sm border-0">
+            <div class="card-header bg-white fw-bold border-bottom-0 pt-3">
+              <i class="fa-solid fa-chart-line text-danger me-2"></i>Xu hướng điểm bất thường (Max Score)
+            </div>
+            <div class="card-body">
+              <div style="width: 100%; height: 220px;">
+                <canvas id="trendChart"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row mb-4">
+        <div class="col-12">
+          <div class="card shadow-sm border-0">
+            <div class="card-header bg-light fw-bold border-bottom py-2">
+              <i class="fa-solid fa-list-ol text-dark me-2"></i>Danh sách Top-K User rủi ro cao nhất
+            </div>
+            <div class="card-body p-0" style="max-height: 400px; overflow-y: auto;">
+              <table class="table table-striped table-hover table-sm mb-0 align-middle" id="topKTable">
+                <thead class="table-light sticky-top" style="z-index: 2;">
+                  <tr>
+                    <th class="py-2 ps-3">#</th>
+
+                    <th class="py-2 sortable" data-col="user">
+                      User <i class="fa-solid fa-sort ms-1 text-muted"></i>
+                    </th>
+
+                    <th class="py-2 sortable" data-col="date">
+                      Date <i class="fa-solid fa-sort ms-1 text-muted"></i>
+                    </th>
+
+                    <th class="py-2 sortable" data-col="score">
+                      Score <i class="fa-solid fa-sort ms-1 text-muted"></i>
+                    </th>
+
+                    <th class="py-2 sortable" data-col="severity">
+                      Severity <i class="fa-solid fa-sort ms-1 text-muted"></i>
+                    </th>
+
+                    <th class="py-2 sortable" data-col="behavior">
+                      Main Behavior <i class="fa-solid fa-sort ms-1 text-muted"></i>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody id="topKTableBody"></tbody>
+              </table>
+
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row mb-4">
+        <div class="col-12">
+          <div class="card shadow-sm border-0">
+            <div class="card-header bg-white fw-bold border-bottom-0 pt-3">
+              <i class="fa-solid fa-virus text-warning me-2"></i>Phân loại hành vi tấn công
+            </div>
+            <div class="card-body">
+              <div style="width: 100%; height: 250px;">
+                <canvas id="behaviorChart"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div> <!-- /tabOverview -->
+
+
+    <!-- =============== TAB: USER DRILL-DOWN =============== -->
+    <div id="tabUser" class="tab-pane d-none">
+
+      <div class="row mb-4">
+        <div class="col-12">
+          <div class="card shadow-sm border-0">
+            <div class="card-body d-flex flex-wrap align-items-center gap-3 py-3">
+              <div>
+                <div class="toolbar-label fw-bold text-secondary small">Chọn User để soi</div>
+                <select id="userFilter_user" class="form-select form-select-sm" style="min-width: 200px;"></select>
+              </div>
+              <div>
+                <div class="toolbar-label fw-bold text-secondary small">Từ ngày</div>
+                <input type="date" id="startDate_user" class="form-control form-control-sm" />
+              </div>
+              <div>
+                <div class="toolbar-label fw-bold text-secondary small">Đến ngày</div>
+                <input type="date" id="endDate_user" class="form-control form-control-sm" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row mb-4">
+
+        <div class="col-12 col-lg-3 mb-3 mb-lg-0">
+          <div class="card h-100 shadow-sm border-0 text-center">
+            <div class="card-body d-flex flex-column align-items-center justify-content-center">
+              <div class="mb-3">
+                <div class="rounded-circle bg-light d-flex align-items-center justify-content-center mx-auto"
+                  style="width: 80px; height: 80px; font-size: 2rem; color: #0f766e;">
+                  <i class="fa-solid fa-user-tie"></i>
+                </div>
+              </div>
+              <h5 id="userInfoName" class="fw-bold text-dark mb-1">--</h5>
+              <div class="badge bg-light text-secondary mb-3 border">Employee</div>
+
+              <div class="w-100 border-top pt-3">
+                <div class="row">
+                  <div class="col-6 border-end">
+                    <div class="small text-muted text-uppercase">Score</div>
+                    <div id="userInfoScore" class="h4 fw-bold text-danger mb-0">--</div>
+                  </div>
+                  <div class="col-6">
+                    <div class="small text-muted text-uppercase">Risk Level</div>
+                    <div id="userInfoSeverity" class="h5 fw-bold mb-0">--</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12 col-lg-5 mb-3 mb-lg-0">
+          <div class="card h-100 shadow-sm border-0">
+            <div class="card-header bg-white fw-bold border-bottom-0">
+              <i class="fa-solid fa-crosshairs text-primary me-2"></i>Phân tích hành vi (Behavior Context)
+            </div>
+            <div class="card-body p-2">
+
+              <div style="width: 100%; height: 260px; margin-bottom: 10px;">
+                <canvas id="userRadarChart"></canvas>
+              </div>
+
+
+              <div class="table-responsive">
+                <table class="table table-sm table-bordered mb-0" style="font-size: 0.8rem;">
+                  <thead class="table-light text-center">
+                    <tr>
+                      <th>Chỉ số</th>
+                      <th>Trung bình (30d)</th>
+                      <th>Hôm nay</th>
+                      <th>Đánh giá</th>
+                    </tr>
+                  </thead>
+                  <tbody id="baselineComparisonBody">
+                  </tbody>
+                </table>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12 col-lg-4">
+          <div class="card h-100 shadow-sm border-0">
+            <div class="card-header bg-white fw-bold border-bottom-0">
+              <i class="fa-solid fa-chart-area text-danger me-2"></i>Lịch sử điểm số (30 ngày)
+            </div>
+            <div class="card-body">
+              <div style="width: 100%; height: 250px;">
+                <canvas id="userScoreChart"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row mb-4">
+        <div class="col-12">
+          <div class="card shadow-sm border-0">
+            <div class="card-header bg-light fw-bold border-bottom">
+              <i class="fa-solid fa-table-list text-dark me-2"></i>Nhật ký hành vi chi tiết
+            </div>
+            <div class="card-body p-0" style="max-height: 400px; overflow-y: auto;">
+              <table id="userLastTable" class="table table-striped table-hover table-sm mb-0 align-middle">
+
+                <thead class="table-light sticky-top">
+                  <tr>
+                    <th class="ps-3 sortable" data-col="date" style="cursor: pointer;">
+                      Date <i class="fa-solid fa-sort ms-1 text-muted"></i>
+                    </th>
+                    <th class="sortable" data-col="score" style="cursor: pointer;">
+                      Score <i class="fa-solid fa-sort ms-1 text-muted"></i>
+                    </th>
+                    <th>Behavior Tag</th>
+                    <th class="sortable" data-col="failed_logon" style="cursor: pointer;">
+                      Logon Fail <i class="fa-solid fa-sort ms-1 text-muted"></i>
+                    </th>
+                    <th class="sortable" data-col="http_count" style="cursor: pointer;">
+                      HTTP Req <i class="fa-solid fa-sort ms-1 text-muted"></i>
+                    </th>
+                    <th class="sortable" data-col="file_ops" style="cursor: pointer;">
+                      File Ops <i class="fa-solid fa-sort ms-1 text-muted"></i>
+                    </th>
+                    <th class="sortable" data-col="file_del" style="cursor: pointer;">
+                      File Del <i class="fa-solid fa-sort ms-1 text-muted"></i>
+                    </th>
+                    <th class="sortable" data-col="after_hours" style="cursor: pointer;">
+                      After Hours <i class="fa-solid fa-sort ms-1 text-muted"></i>
+                    </th>
+                    <th>Baseline Deviation</th>
+                    <th class="text-center">Action</th>
+                  </tr>
+                </thead>
+
+                <tbody id="userLastTableBody">
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div> <!-- /tabUser -->
+
+    <!-- =============== TAB: ALERTS =============== -->
+    <div id="tabAlerts" class="tab-pane d-none">
+
+      <!-- Bộ lọc riêng cho ALERT TAB -->
+      <div class="row mb-3">
+        <div class="col-12">
+          <div class="card">
+            <div class="card-body d-flex flex-wrap align-items-center gap-3">
+              <div>
+                <div class="toolbar-label">User</div>
+                <select id="userFilter_al">
+                  <option value="__ALL__">(Tất cả)</option>
+                </select>
+              </div>
+
+              <div>
+                <div class="toolbar-label">Từ ngày</div>
+                <input type="date" id="startDate_al" />
+              </div>
+
+              <div>
+                <div class="toolbar-label">Đến ngày</div>
+                <input type="date" id="endDate_al" />
+              </div>
+
+              <div>
+                <div class="toolbar-label">Top-K Alerts</div>
+                <input type="number" id="topK_al" min="5" max="200" step="5" value="50" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- BẢNG ALERTS -->
+      <div class="row mb-3">
+        <div class="col-12">
+          <div class="card">
+            <div class="card-header">🔔 Top-K Alerts (mọi user)</div>
+            <div class="card-body" style="max-height: 500px; overflow-y: auto;">
+              <table class="table table-hover table-striped align-middle">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>User</th>
+                    <th>Date</th>
+                    <th>Score</th>
+                    <th>Severity</th>
+                    <th>Behavior</th>
+                    <th>Dept</th>
+                    <th>Role</th>
+                    <th>HTTP</th>
+                    <th>File Ops</th>
+                    <th>Fail Logon</th>
+                    <th>After ratio</th>
+                    <th>SOC review</th>
+                  </tr>
+                </thead>
+                <tbody id="alertsTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div> <!-- /tabAlerts -->
+
+    <!-- =============== TAB: LOG VIEWER =============== -->
+    <div id="tabLogs" class="tab-pane d-none">
+      <!-- Bộ lọc Log -->
+      <div class="row mb-3">
+        <div class="col-12">
+          <div class="card">
+            <div class="card-body d-flex flex-wrap align-items-center gap-3">
+              <div>
+                <div class="toolbar-label">User</div>
+                <select id="logUserFilter">
+                  <option value="">(Tất cả)</option>
+                </select>
+              </div>
+
+              <div>
+                <div class="toolbar-label">Ngày</div>
+                <input type="date" id="logDateFilter" />
+              </div>
+
+              <div>
+                <div class="toolbar-label">Loại sự kiện</div>
+                <select id="logEventFilter">
+                  <option value="">(Tất cả)</option>
+                  <option value="logon">logon</option>
+                  <option value="file">file</option>
+                  <option value="http">http</option>
+                  <option value="device">device</option>
+                </select>
+              </div>
+
+              <div class="ms-auto">
+                <button class="btn btn-primary btn-sm" id="btnReloadLogs">
+                  <i class="fa-solid fa-rotate-right"></i> Refresh
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bảng Log thô -->
+      <div class="row">
+        <div class="col-12">
+          <div class="card">
+            <div class="card-header">📜 Log thô (tối đa 500 dòng)</div>
+            <div class="card-body" style="max-height: 550px; overflow: auto;">
+              <div id="logViewerEmpty" class="text-muted small" style="display: none">
+                Không có log nào với bộ lọc hiện tại.
+              </div>
+              <table class="table table-sm table-hover" id="logViewerTable" style="display: none">
+                <thead id="logViewerHead"></thead>
+                <tbody id="logViewerBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div> <!-- /tabLogs -->
+
+
+  </div> <!-- /container-fluid -->
+
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+  <!-- MODAL: ALERT DETAIL -->
+  <div class="modal fade" id="alertDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header py-3">
+          <h5 class="modal-title fw-bold text-dark">
+            <i class="fa-solid fa-triangle-exclamation text-warning me-2"></i>Chi tiết cảnh báo & Điều tra
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+
+        <div class="modal-body bg-light">
+          <div class="row g-4 h-100">
+            <div class="col-lg-4 d-flex flex-column gap-3">
+
+              <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                  <h6 class="text-muted text-uppercase small fw-bold mb-3">Đối tượng</h6>
+
+                  <div class="d-flex justify-content-between mb-2 border-bottom pb-2">
+                    <span>User:</span>
+                    <span id="detailUser" class="fw-bold text-primary fs-5">--</span>
+                  </div>
+
+                  <div class="d-flex justify-content-between mb-2 border-bottom pb-2">
+                    <span>Date:</span>
+                    <span id="detailDate" class="fw-bold">--</span>
+                  </div>
+
+                  <!-- ✅ Department (phòng ban) -->
+                  <div class="d-flex justify-content-between mb-2 border-bottom pb-2">
+                    <span>Department:</span>
+                    <span id="detailDept" class="fw-semibold text-secondary">--</span>
+                  </div>
+
+                  <div class="d-flex justify-content-between mb-2 border-bottom pb-2">
+                    <span>Score:</span>
+                    <div>
+                      <span id="detailScore" class="fw-bold text-danger fs-5">--</span>
+                      <span id="detailSeverity" class="badge bg-secondary ms-1">--</span>
+                    </div>
+                  </div>
+
+                  <div class="mt-2">
+                    <span class="text-muted small">Phân loại:</span>
+                    <!-- Container để gắn nhiều badge -->
+                    <div id="detailBehavior" class="mt-1 d-flex flex-wrap gap-1"></div>
+                  </div>
+
+                </div>
+              </div>
+
+
+              <div class="alert alert-warning border-warning mb-0 shadow-sm">
+                <h6 class="alert-heading fw-bold small"><i class="fa-solid fa-robot me-1"></i>Hệ thống phân tích hành
+                  vi:</h6>
+                <p id="detailExplanation" class="mb-0 small">--</p>
+              </div>
+
+              <div class="card border-0 shadow-sm mt-auto">
+                <div class="card-header bg-dark text-white small text-uppercase">
+                  <i class="fa-solid fa-gavel me-2"></i>Quyết định xử lý
+                </div>
+                <div class="card-body">
+                  <div class="mb-3">
+                    <label class="form-label small fw-bold">Phân loại</label>
+                    <select id="socDecision" class="form-select form-select-sm">
+                      <option value="0">✅ False Positive (Bình thường)</option>
+                      <option value="1">⚠️ Suspicious (Cần theo dõi)</option>
+                      <option value="2">🚨 Confirmed Incident (Tấn công)</option>
+                    </select>
+                  </div>
+                  <textarea id="socNote" class="form-control form-control-sm" rows="3"
+                    placeholder="Ghi chú điều tra..."></textarea>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-lg-8">
+              <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white text-primary fw-bold">
+                  <i class="fa-solid fa-chart-radar me-2"></i>Bối cảnh hành vi (Context)
+                </div>
+                <div class="card-body">
+                  <div class="d-flex justify-content-center mb-4">
+                    <div style="width: 100%; max-width: 480px; height: 320px;">
+                      <canvas id="modalRadarChart"></canvas>
+                    </div>
+                  </div>
+
+
+                  <h6 class="text-muted small text-uppercase fw-bold mb-2">So sánh với Baseline (30 ngày)</h6>
+                  <div class="table-responsive border rounded">
+                    <table class="table table-sm table-hover mb-0 align-middle">
+                      <thead class="table-light text-center small">
+                        <tr>
+                          <th class="text-start ps-3">Feature</th>
+                          <th>Baseline</th>
+                          <th>Hôm nay</th>
+                          <th>Đánh giá</th>
+                        </tr>
+                      </thead>
+                      <tbody id="modalBaselineBody"></tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer bg-white py-2 justify-content-between">
+          <div>
+            <button class="btn btn-outline-info btn-sm fw-bold me-2" id="btnViewFullFeat">
+              <i class="fa-solid fa-list me-1"></i> Full Features
+            </button>
+            <button class="btn btn-outline-dark btn-sm fw-bold" id="btnJumpToLogs">
+              <i class="fa-solid fa-terminal me-1"></i> Xem Logs
+            </button>
+          </div>
+          <div>
+            <button class="btn btn-secondary btn-sm px-3" data-bs-dismiss="modal">Đóng</button>
+            <button class="btn btn-primary btn-sm px-4 fw-bold ms-2" id="saveSocBtn">
+              <i class="fa-solid fa-floppy-disk me-1"></i> Lưu kết quả
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: FULL FEATURES -->
+  <div class="modal fade" id="fullFeatureModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header bg-light">
+          <h5 class="modal-title fw-bold">
+            <i class="fa-solid fa-database text-primary me-2"></i>Dữ liệu thô chi tiết (Full Features)
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body p-0">
+          <table class="table table-striped table-hover mb-0" style="font-size: 0.9rem;">
+            <thead class="table-dark sticky-top">
+              <tr>
+                <th>Feature Name</th>
+                <th>Value</th>
+              </tr>
+            </thead>
+            <tbody id="fullFeatureBody">
+            </tbody>
+          </table>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Đóng</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ===== CONFIG =====
+    const FEATURES_CSV = "./demo/artifacts/features_user_day_demo.csv";
+    const SCORES_CSV = "./demo/outputs/scores_iforest_demo.csv";
+    const SOC_FEEDBACK_API = "/api/soc_feedback";
+
+    let mergedRows = [];
+    let scoreColName = "score_iforest";
+    let socFeedbackMap = new Map();
+    let currentAlertKey = null;
+
+    // Chart refs
+    let severityChart = null;
+    let trendChart = null;
+    let behaviorChart = null;
+    let userScoreChart = null;
+    let radarChartInstance = null;
+    let modalRadarInstance = null;
+    let topKSortState = { col: 'score', asc: false }; // mặc định: score desc
+
+
+    // Log viewer state
+    let logFiltersInitialized = false;
+    let logRowsCurrent = [];
+    let logColsCurrent = [];
+    let logSortState = { col: null, asc: true };
+    const preferredLogColumnOrder = [
+      "user",
+      "__DATE_TMP",
+      "TIMESTAMP",
+      "OP",
+      "SUCCESS",
+      "PC",
+      "TABLE",
+      "BYTES",
+      "FILENAME",
+      "URL",
+    ];
+
+    // ===== UTIL =====
+    function parseDateStr(s) {
+      if (!s) return null;
+      const d = new Date(s);
+      return isNaN(d.getTime()) ? null : d;
+    }
+
+    function keyForJoin(row) {
+      const user = (row.user || "").trim();
+      const date = (row.date || "").trim();
+      const sess = (row.session_id || "").trim();
+      return `${user}__${date}__${sess}`;
+    }
+
+    function classifySeverity(score) {
+      const s = Number(score);
+      if (!isFinite(s) || s <= 0) return "Normal";
+      if (s > 0.2) return "High";
+      if (s > 0.1) return "Medium";
+      return "Low";
+    }
+
+    function inferMainBehavior(row) {
+      const toNum = v =>
+        v === undefined || v === null || v === "" ? 0 : Number(v);
+
+      const file_ops = toNum(row.file_ops);
+      const file_del = toNum(row.file_delete_count);
+      const http_cnt = toNum(row.http_count);
+      const rare_dom = toNum(row.rare_domain_count);
+      const failed_logon = toNum(row.failed_logon);
+      const after_ratio = toNum(row.after_hours_ratio);
+      const after_events = toNum(row.after_hours_events);
+      const unique_pc = toNum(row.unique_pc);
+      const multi_pc_flag = toNum(row.multi_pc_flag);
+      const z_unique_pc = toNum(row.z_user_unique_pc_30d);
+
+      const z_file_ops = toNum(row.z_user_file_ops_30d);
+      const z_file_del = toNum(row.z_user_file_delete_count_30d);
+      const z_http = toNum(row.z_user_http_count_30d);
+      const z_failed = toNum(row.z_user_failed_logon_30d);
+      const z_after_rat = toNum(row.z_user_after_hours_ratio_30d);
+
+      const tags = [];
+
+      if (file_del >= 5 || z_file_del >= 1.0) {
+        tags.push("mass_file_delete");
+      }
+      if (file_ops >= 150 || z_file_ops >= 1.5) {
+        tags.push("mass_file_access");
+      }
+      if (failed_logon >= 3 || z_failed >= 1.5) {
+        tags.push("bruteforce_logon");
+      }
+      if (http_cnt >= 150 || rare_dom >= 3 || z_http >= 1.5) {
+        tags.push("suspicious_web");
+      }
+      if (after_ratio >= 0.4 || after_events >= 4 || z_after_rat >= 1.5) {
+        tags.push("after_hours_activity");
+      }
+      if (unique_pc >= 2 || multi_pc_flag === 1 || z_unique_pc >= 1.0) {
+        tags.push("multi_pc_login");
+      }
+      if (!tags.length) return "normal";
+      return tags.join(" | ");
+    }
+
+    // ===== LOAD & MERGE =====
+    function loadAllData() {
+      return new Promise((resolve, reject) => {
+        Papa.parse(FEATURES_CSV, {
+          download: true,
+          header: true,
+          skipEmptyLines: true,
+          complete: (featRes) => {
+            const featRows = featRes.data || [];
+            Papa.parse(SCORES_CSV, {
+              download: true,
+              header: true,
+              skipEmptyLines: true,
+              complete: (scoreRes) => {
+                const scoreRows = scoreRes.data || [];
+                try {
+                  mergedRows = mergeFeaturesScores(featRows, scoreRows);
+                  resolve();
+                } catch (e) {
+                  console.error("Merge error:", e);
+                  reject(e);
+                }
+              },
+              error: (err) => reject(err),
+            });
+          },
+          error: (err) => reject(err),
+        });
+      });
+    }
+
+    function mergeFeaturesScores(featRows, scoreRows) {
+      const featMap = new Map();
+      featRows.forEach(r => {
+        featMap.set(keyForJoin(r), r);
+      });
+
+      const merged = [];
+      scoreRows.forEach(s => {
+        const f = featMap.get(keyForJoin(s));
+        if (!f) return;
+        const row = { ...f, ...s };
+        const d = parseDateStr(row.date);
+        if (!d) return;
+        row._dateObj = d;
+
+        if ("score_rerank" in row && row.score_rerank !== "") {
+          row._score = Number(row.score_rerank);
+          scoreColName = "score_rerank";
+        } else if ("score_iforest" in row) {
+          row._score = Number(row.score_iforest);
+          scoreColName = "score_iforest";
+        } else {
+          row._score = NaN;
+        }
+        row._severity = classifySeverity(row._score);
+        row._behavior = inferMainBehavior(row);
+        merged.push(row);
+      });
+
+      merged.sort((a, b) => {
+        if (a._dateObj.getTime() === b._dateObj.getTime()) {
+          return b._score - a._score;
+        }
+        return a._dateObj - b._dateObj;
+      });
+      return merged;
+    }
+
+    // ===== SOC FEEDBACK (load/save) =====
+    async function loadSocFeedback() {
+      socFeedbackMap = new Map();
+      try {
+        const resp = await fetch(SOC_FEEDBACK_API);
+        if (!resp.ok) return;
+        const data = await resp.json();
+        (data || []).forEach(row => {
+          const user = (row.user || "").toUpperCase().trim();
+          const date = (row.date || "").trim();
+          if (!user || !date) return;
+          const key = `${user}|${date}`;
+          socFeedbackMap.set(key, row);
+        });
+      } catch (e) {
+        console.warn("Không load được SOC feedback:", e);
+      }
+    }
+
+    async function saveSocFeedback(user, date) {
+      const decision = Number(document.getElementById("socDecision").value || 0);
+      const note = document.getElementById("socNote").value || "";
+
+      try {
+        const resp = await fetch(SOC_FEEDBACK_API, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            user,
+            date,
+            soc_tag: decision,
+            soc_note: note,
+          }),
+        });
+        const data = await resp.json();
+        if (!resp.ok || !data.success) {
+          alert("❌ Lưu SOC review thất bại. Xem log console.");
+          console.error(data);
+          return;
+        }
+
+        const key = `${user}|${date}`;
+        socFeedbackMap.set(key, {
+          user,
+          date,
+          soc_tag: String(decision),
+          soc_note: note,
+        });
+
+        alert("✅ Đã lưu SOC review.");
+        refreshAlertsTab();
+      } catch (e) {
+        console.error(e);
+        alert("❌ Lỗi khi gọi API /api/soc_feedback.");
+      }
+    }
+
+    // ===== INIT FILTERS (OVERVIEW / USER / ALERT) =====
+    function initAllFilters() {
+      if (!mergedRows.length) return;
+      const users = Array.from(
+        new Set(
+          mergedRows.map(r => (r.user || "").trim()).filter(Boolean)
+        )
+      ).sort();
+
+      const dates = mergedRows
+        .map(r => r._dateObj)
+        .filter(Boolean)
+        .sort((a, b) => a - b);
+
+      const minD = dates[0];
+      const maxD = dates[dates.length - 1];
+
+      const formatDateInput = d => {
+        if (!d) return "";
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, "0");
+        const day = String(d.getDate()).padStart(2, "0");
+        return `${y}-${m}-${day}`;
+      };
+
+      // OVERVIEW filters
+      const userFilterOv = document.getElementById("userFilter_ov");
+      userFilterOv.innerHTML = '<option value="__ALL__">(Tất cả)</option>';
+      users.forEach(u => {
+        const opt = document.createElement("option");
+        opt.value = opt.textContent = u;
+        userFilterOv.appendChild(opt);
+      });
+      document.getElementById("startDate_ov").value = formatDateInput(minD);
+      document.getElementById("endDate_ov").value = formatDateInput(maxD);
+
+      // USER tab filters
+      const userFilterUser = document.getElementById("userFilter_user");
+      userFilterUser.innerHTML = "";
+      users.forEach(u => {
+        const opt = document.createElement("option");
+        opt.value = opt.textContent = u;
+        userFilterUser.appendChild(opt);
+      });
+      userFilterUser.value = users[0] || "";
+      document.getElementById("startDate_user").value = formatDateInput(minD);
+      document.getElementById("endDate_user").value = formatDateInput(maxD);
+
+      // ALERT tab filters
+      const userFilterAl = document.getElementById("userFilter_al");
+      userFilterAl.innerHTML = '<option value="__ALL__">(Tất cả)</option>';
+      users.forEach(u => {
+        const opt = document.createElement("option");
+        opt.value = opt.textContent = u;
+        userFilterAl.appendChild(opt);
+      });
+      document.getElementById("startDate_al").value = formatDateInput(minD);
+      document.getElementById("endDate_al").value = formatDateInput(maxD);
+    }
+
+    // ===== OVERVIEW =====
+    function getFiltersOverview() {
+      const userSel = document.getElementById("userFilter_ov").value;
+      const sDateStr = document.getElementById("startDate_ov").value;
+      const eDateStr = document.getElementById("endDate_ov").value;
+      const topK = Number(document.getElementById("topK_ov").value || 20);
+
+      const sDate = sDateStr ? new Date(sDateStr) : null;
+      const eDate = eDateStr ? new Date(eDateStr) : null;
+      return { userSel, sDate, eDate, topK };
+    }
+
+    function applyFiltersOverview(rows) {
+      const { userSel, sDate, eDate } = getFiltersOverview();
+      return rows.filter(r => {
+        if (!r._dateObj) return false;
+        if (userSel !== "__ALL__" && (r.user || "").trim() !== userSel) return false;
+        if (sDate && r._dateObj < sDate) return false;
+        if (eDate && r._dateObj > eDate) return false;
+        return true;
+      });
+    }
+
+    function refreshOverview() {
+      if (!mergedRows.length) return;
+      const filtered = applyFiltersOverview(mergedRows);
+      updateKPIs(filtered);
+      updateTopKTable(filtered);
+      updateSeverityChart(filtered);
+      updateTrendChart(filtered);
+      updateBehaviorChart(filtered);
+    }
+
+    function updateKPIs(filteredRows) {
+      if (!filteredRows.length) {
+        document.getElementById("kpiTotalUsers").textContent = "--";
+        document.getElementById("kpiAlertUsers").textContent = "--";
+        document.getElementById("kpiAlertCounts").textContent = "-- / -- / --";
+        document.getElementById("kpiDateRange").textContent = "-- → --";
+        return;
+      }
+      const users = new Set(filteredRows.map(r => (r.user || "").trim()));
+      const alerts = filteredRows.filter(r => r._severity !== "Normal");
+      const alertUsers = new Set(alerts.map(r => (r.user || "").trim()));
+
+      const high = alerts.filter(r => r._severity === "High").length;
+      const med = alerts.filter(r => r._severity === "Medium").length;
+      const low = alerts.filter(r => r._severity === "Low").length;
+
+      const dates = filteredRows.map(r => r._dateObj).sort((a, b) => a - b);
+      const fmt = d => (d ? d.toISOString().slice(0, 10) : "--");
+
+      document.getElementById("kpiTotalUsers").textContent = users.size;
+      document.getElementById("kpiAlertUsers").textContent = alertUsers.size;
+      document.getElementById("kpiAlertCounts").textContent = `${high} / ${med} / ${low}`;
+      document.getElementById("kpiDateRange").textContent =
+        `${fmt(dates[0])} → ${fmt(dates[dates.length - 1])}`;
+    }
+
+    function updateTopKTable(filteredRows) {
+      const { topK } = getFiltersOverview();
+
+      // Bước 1: LUÔN chọn Top-K THEO SCORE DESC làm "tập gốc"
+      const base = filteredRows
+        .slice()
+        .sort((a, b) => (b._score || 0) - (a._score || 0))
+        .slice(0, topK);
+
+      // Nếu không có dữ liệu thì clear bảng
+      const body = document.getElementById("topKTableBody");
+      body.innerHTML = "";
+      if (!base.length) {
+        updateTopKSortIcons();
+        return;
+      }
+
+      // Bước 2: Trong tập Top-K đó, sort lại theo cột mà user đang chọn
+      let arr = base.slice();
+
+      arr.sort((a, b) => {
+        const col = topKSortState.col;
+        let va, vb;
+
+        switch (col) {
+          case "user":
+            va = (a.user || "").trim();
+            vb = (b.user || "").trim();
+            break;
+
+          case "date":
+            va = a._dateObj?.getTime() || 0;
+            vb = b._dateObj?.getTime() || 0;
+            break;
+
+          case "severity":
+            // Nếu thích bạn có thể map High > Medium > Low > Normal
+            va = a._severity || "";
+            vb = b._severity || "";
+            break;
+
+          case "behavior":
+            va = a._behavior || "";
+            vb = b._behavior || "";
+            break;
+
+          case "score":
+          default:
+            va = a._score || 0;
+            vb = b._score || 0;
+            break;
+        }
+
+        if (va < vb) return topKSortState.asc ? -1 : 1;
+        if (va > vb) return topKSortState.asc ? 1 : -1;
+        return 0;
+      });
+
+      // Bước 3: Render lại bảng theo arr (Top-K cố định, chỉ đổi thứ tự)
+      arr.forEach((r, idx) => {
+        const tr = document.createElement("tr");
+        const dateStr = r._dateObj
+          ? r._dateObj.toISOString().slice(0, 10)
+          : (r.date || "");
+
+        const sev = r._severity;
+        const sevClass =
+          {
+            High: "badge bg-danger",
+            Medium: "badge bg-warning",
+            Low: "badge bg-info",
+            Normal: "badge bg-secondary",
+          }[sev] || "badge bg-secondary";
+
+        tr.innerHTML = `
+      <td>${idx + 1}</td>
+      <td>${r.user || ""}</td>
+      <td>${dateStr}</td>
+      <td>${(r._score ?? 0).toFixed(4)}</td>
+      <td><span class="${sevClass}">${sev}</span></td>
+      <td>${r._behavior}</td>
+    `;
+        body.appendChild(tr);
+      });
+
+      // Cập nhật icon ▲ / ▼ trên header
+      updateTopKSortIcons();
+    }
+
+    function initTopKSorting() {
+      const table = document.getElementById("topKTable");
+      if (!table) return;
+
+      table.querySelectorAll("th.sortable").forEach(th => {
+        th.addEventListener("click", () => {
+          const col = th.dataset.col;
+          if (!col) return;
+
+          if (topKSortState.col === col) {
+            // click lại cùng cột -> đảo chiều
+            topKSortState.asc = !topKSortState.asc;
+          } else {
+            topKSortState.col = col;
+            // mặc định: score thì desc, các cột khác asc
+            topKSortState.asc = (col === "score") ? false : true;
+          }
+          refreshOverview();
+        });
+      });
+    }
+
+    function updateTopKSortIcons() {
+      const table = document.getElementById("topKTable");
+      if (!table) return;
+
+      table.querySelectorAll("th.sortable").forEach(th => {
+        const icon = th.querySelector("i");
+        if (!icon) return;
+        const col = th.dataset.col;
+
+        // reset
+        icon.className = "fa-solid fa-sort ms-1 text-muted";
+
+        if (col === topKSortState.col) {
+          icon.className = `fa-solid ${topKSortState.asc ? "fa-sort-up" : "fa-sort-down"} ms-1 text-muted`;
+        }
+      });
+    }
+
+
+    function updateSeverityChart(rows) {
+      const ctx = document.getElementById("severityChart").getContext("2d");
+      let counts = { Normal: 0, Low: 0, Medium: 0, High: 0 };
+      rows.forEach(r => {
+        let s = r._severity || "Normal";
+        if (counts[s] === undefined) counts[s] = 0;
+        counts[s]++;
+      });
+      const dataValues = [counts.High, counts.Medium, counts.Low, counts.Normal];
+      if (severityChart) severityChart.destroy();
+
+      severityChart = new Chart(ctx, {
+        type: "doughnut",
+        data: {
+          labels: ["Critical (High)", "Medium", "Low", "Normal"],
+          datasets: [{
+            data: dataValues,
+            backgroundColor: [
+              "#dc2626",
+              "#f97316",
+              "#3b82f6",
+              "#10b981"
+            ],
+            borderWidth: 0,
+            hoverOffset: 10
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'right' },
+            title: { display: false }
+          },
+          cutout: '70%'
+        }
+      });
+    }
+
+    function updateTrendChart(rows) {
+      const canvas = document.getElementById("trendChart");
+      const ctx = canvas.getContext("2d");
+
+      const dateMap = {};
+      rows.forEach(r => {
+        if (!r._dateObj) return;
+        const dStr = r._dateObj.toISOString().slice(0, 10);
+        if (!dateMap[dStr]) dateMap[dStr] = [];
+        dateMap[dStr].push(r._score || 0);
+      });
+
+      const labels = Object.keys(dateMap).sort();
+      const dataPoints = labels.map(d => Math.max(...dateMap[d]));
+
+      const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+      gradient.addColorStop(0, 'rgba(249, 115, 22, 0.4)');
+      gradient.addColorStop(1, 'rgba(249, 115, 22, 0.0)');
+
+      if (trendChart) trendChart.destroy();
+
+      trendChart = new Chart(ctx, {
+        type: "line",
+        data: {
+          labels: labels,
+          datasets: [{
+            label: "Max Anomaly Score",
+            data: dataPoints,
+            borderColor: "#f97316",
+            backgroundColor: gradient,
+            borderWidth: 3,
+            pointBackgroundColor: "#fff",
+            pointBorderColor: "#f97316",
+            pointRadius: 4,
+            pointHoverRadius: 6,
+            fill: true,
+            tension: 0.4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: {
+            mode: 'index',
+            intersect: false,
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              suggestedMax: 1.0,
+              grid: { borderDash: [4, 4], color: "#e5e7eb" },
+              title: { display: true, text: 'Mức độ bất thường (Score)' }
+            },
+            x: {
+              grid: { display: false },
+              ticks: { maxTicksLimit: 8 }
+            }
+          },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: function (context) {
+                  return `Max Score: ${context.parsed.y.toFixed(4)}`;
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function updateBehaviorChart(rows) {
+      const ctx = document.getElementById("behaviorChart").getContext("2d");
+      const alerts = rows.filter(r => r._severity !== "Normal");
+
+      if (!alerts.length) {
+        if (behaviorChart) behaviorChart.destroy();
+        return;
+      }
+
+      const counts = {};
+      alerts.forEach(r => {
+        const rawBehavior = r._behavior || "Unknown";
+        const listBehaviors = rawBehavior.split("|");
+        listBehaviors.forEach(b => {
+          const tag = b.trim();
+          if (!tag) return;
+          if (!counts[tag]) counts[tag] = 0;
+          counts[tag]++;
+        });
+      });
+
+      const labels = Object.keys(counts);
+      const data = labels.map(k => counts[k]);
+
+      if (behaviorChart) behaviorChart.destroy();
+
+      behaviorChart = new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels: labels,
+          datasets: [{
+            label: "Số vụ phát hiện",
+            data: data,
+            backgroundColor: [
+              "#8b5cf6", "#f43f5e", "#10b981", "#f59e0b", "#3b82f6"
+            ],
+            borderRadius: 4,
+            barPercentage: 0.6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          indexAxis: 'x',
+          scales: {
+            y: { beginAtZero: true, grid: { color: "#f1f5f9" } },
+            x: { grid: { display: false } }
+          },
+          plugins: { legend: { display: false } }
+        }
+      });
+    }
+
+    // ===== USER TAB =====
+    function getFiltersUser() {
+      const user = document.getElementById("userFilter_user").value;
+      const sDateStr = document.getElementById("startDate_user").value;
+      const eDateStr = document.getElementById("endDate_user").value;
+      const sDate = sDateStr ? new Date(sDateStr) : null;
+      const eDate = eDateStr ? new Date(eDateStr) : null;
+      return { user, sDate, eDate };
+    }
+
+    function renderUserDetailView(row, rowsAll) {
+      document.getElementById("userInfoName").textContent = row.user || "--";
+      const score = row._score || 0;
+      document.getElementById("userInfoScore").textContent = score.toFixed(4);
+
+      const sevEl = document.getElementById("userInfoSeverity");
+      sevEl.textContent = row._severity;
+      sevEl.className = "h5 fw-bold mb-0";
+      if (row._severity === "High") sevEl.classList.add("text-danger");
+      else if (row._severity === "Medium") sevEl.classList.add("text-warning");
+      else sevEl.classList.add("text-success");
+
+      updateUserRadarChart(row);
+      updateBaselineTable(rowsAll, row);
+    }
+
+    function updateUserRadarChart(row) {
+      const ctx = document.getElementById("userRadarChart").getContext("2d");
+      const toNum = v => (v === undefined || v === null || v === "" ? 0 : Number(v));
+
+      const featureConfig = [
+        { key: "z_user_file_ops_30d", label: "File Access" },
+        { key: "z_user_http_count_30d", label: "Web Traffic" },
+        { key: "z_user_failed_logon_30d", label: "Login Fail" },
+        { key: "z_user_after_hours_ratio_30d", label: "After Hours" },
+        { key: "z_user_file_delete_count_30d", label: "File Delete" },
+        { key: "z_user_device_ops_30d", label: "USB Usage" }
+      ];
+
+      let scores = featureConfig.map(conf => ({
+        label: conf.label,
+        value: Math.max(0, toNum(row[conf.key]))
+      }));
+
+      // sort lấy thằng lệch nhất
+      scores.sort((a, b) => b.value - a.value);
+      const top = scores.slice(0, 5);
+
+      const labels = top.map(x => x.label);
+      const data = top.map(x => x.value);
+
+      // baseline vẽ vòng tròn rõ hơn
+      const BASELINE_LEVEL = 1.0;
+      const baselineData = new Array(top.length).fill(BASELINE_LEVEL);
+
+      if (radarChartInstance) radarChartInstance.destroy();
+
+      radarChartInstance = new Chart(ctx, {
+        type: "radar",
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: "Độ lệch (Z-score)",
+              data: data,
+              fill: true,
+              backgroundColor: "rgba(239, 68, 68, 0.20)",
+              borderColor: "#ef4444",
+              borderWidth: 2,
+              pointBackgroundColor: "#ef4444",
+              pointRadius: 3
+            },
+            {
+              label: "Baseline",
+              data: baselineData,
+              fill: false,
+              borderColor: "#10b981",
+              borderWidth: 2,
+              borderDash: [5, 4],
+              pointRadius: 0
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            r: {
+              suggestedMin: 0,
+              // lấy max theo dữ liệu cho đỡ bị “bẹp”
+              suggestedMax: Math.max(3, ...data, BASELINE_LEVEL + 0.5),
+              grid: { color: "#e5e7eb" },
+              angleLines: { color: "#e5e7eb" },
+              ticks: {
+                display: true,
+                stepSize: 1,
+                backdropColor: "transparent"
+              },
+              pointLabels: {
+                font: { size: 11, weight: "bold" }
+              }
+            }
+          },
+          plugins: {
+            legend: {
+              position: "bottom",
+              labels: { boxWidth: 10, font: { size: 11 } }
+            }
+          }
+        }
+      });
+    }
+
+
+    function updateBaselineTable(rowsAll, latestRow) {
+      const tbody = document.getElementById("baselineComparisonBody");
+      if (!tbody) return;
+      tbody.innerHTML = "";
+
+      const toNum = (r, k) => {
+        const v = r ? r[k] : 0;
+        return v === undefined || v === null || v === "" ? 0 : Number(v);
+      };
+
+      const featureConfig = [
+        { z: "z_user_file_ops_30d", raw: "file_ops", label: "File Access" },
+        { z: "z_user_http_count_30d", raw: "http_count", label: "Web Traffic" },
+        { z: "z_user_failed_logon_30d", raw: "failed_logon", label: "Login Fail" },
+        { z: "z_user_after_hours_ratio_30d", raw: "after_hours_events", label: "After Hours" },
+        { z: "z_user_file_delete_count_30d", raw: "file_delete_count", label: "File Delete" },
+        { z: "z_user_device_ops_30d", raw: "device_ops", label: "USB Usage" },
+        { z: "z_user_unique_pc_30d", raw: "unique_pc", label: "Lateral Move" },
+        { z: "z_user_rare_domain_count_30d", raw: "rare_domain_count", label: "Rare Domains" }
+      ];
+
+      const rankedFeatures = featureConfig.map(conf => ({
+        ...conf,
+        currentZ: toNum(latestRow, conf.z)
+      }));
+      rankedFeatures.sort((a, b) => b.currentZ - a.currentZ);
+
+      const topFeatures = rankedFeatures.slice(0, 5);
+
+      const historyRows = rowsAll.filter(r => r._dateObj < latestRow._dateObj).slice(-30);
+      const baselineSource = historyRows.length ? historyRows : [latestRow];
+
+      topFeatures.forEach(m => {
+        const sum = baselineSource.reduce((acc, r) => acc + toNum(r, m.raw), 0);
+        const avg = sum / baselineSource.length;
+        const current = toNum(latestRow, m.raw);
+
+        let trendHtml = '<span class="text-muted">=</span>';
+        let rowClass = "";
+
+        if (current > avg * 2 && current > 1) {
+          const times = avg === 0 ? current : (current / avg);
+          trendHtml = `<i class="fa-solid fa-arrow-trend-up text-danger"></i> <strong>x${times.toFixed(1)}</strong>`;
+          rowClass = "table-danger";
+        } else if (current > avg * 1.2) {
+          trendHtml = '<i class="fa-solid fa-arrow-trend-up text-warning"></i>';
+        }
+
+        const tr = document.createElement("tr");
+        tr.className = rowClass;
+        tr.innerHTML = `
+        <td class="fw-bold text-secondary text-truncate" style="max-width: 100px;" title="${m.label}">${m.label}</td>
+        <td class="text-end text-muted">${avg.toFixed(1)}</td>
+        <td class="text-end fw-bold">${current}</td>
+        <td class="text-center">${trendHtml}</td>
+      `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function showFullFeatureModal(row) {
+      const tbody = document.getElementById("fullFeatureBody");
+      tbody.innerHTML = "";
+
+      const keys = Object.keys(row).filter(k => !k.startsWith("_")).sort();
+
+      keys.forEach(k => {
+        let val = row[k];
+        if (typeof val === 'number' && !Number.isInteger(val)) {
+          val = val.toFixed(4);
+        }
+        const isZscore = k.startsWith("z_user");
+        const tr = document.createElement("tr");
+        if (isZscore) tr.classList.add("table-warning");
+
+        tr.innerHTML = `
+        <td class="fw-bold ${isZscore ? 'text-dark' : 'text-secondary'}">${k}</td>
+        <td class="font-monospace">${val}</td>
+      `;
+        tbody.appendChild(tr);
+      });
+
+      const modal = new bootstrap.Modal(document.getElementById("fullFeatureModal"));
+      modal.show();
+    }
+
+    function refreshUserTab() {
+      if (!mergedRows.length) return;
+      const { user, sDate, eDate } = getFiltersUser();
+      if (!user) return;
+
+      const rowsAll = mergedRows
+        .filter(r => (r.user || "").trim() === user)
+        .sort((a, b) => a._dateObj - b._dateObj);
+
+      if (!rowsAll.length) return;
+
+      const rows = rowsAll.filter(r => {
+        if (sDate && r._dateObj < sDate) return false;
+        if (eDate && r._dateObj > eDate) return false;
+        return true;
+      });
+
+      const ctxScore = document.getElementById("userScoreChart").getContext("2d");
+      const last30 = rowsAll.slice(-30);
+      if (userScoreChart) userScoreChart.destroy();
+
+      userScoreChart = new Chart(ctxScore, {
+        type: "line",
+        data: {
+          labels: last30.map(r => r._dateObj.toISOString().slice(0, 10)),
+          datasets: [{
+            label: "Score",
+            data: last30.map(r => r._score || 0),
+            borderColor: "#f97316",
+            backgroundColor: "rgba(249, 115, 22, 0.1)",
+            fill: true,
+            tension: 0.4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: { x: { display: false }, y: { beginAtZero: true } },
+          plugins: { legend: { display: false } }
+        }
+      });
+
+      const tbody = document.getElementById("userLastTableBody");
+      tbody.innerHTML = "";
+
+      const rowsSorted = rows.slice().sort((a, b) => b._score - a._score);
+
+      if (rowsSorted.length > 0) {
+        const latest = rowsSorted[0];
+        renderUserDetailView(latest, rowsAll);
+      }
+
+      rowsSorted.forEach((r, index) => {
+        const dStr = r._dateObj.toISOString().slice(0, 10);
+        const tr = document.createElement("tr");
+        if (index === 0) tr.classList.add("table-active-custom");
+
+        const rawEvents = r.after_hours_events || 0;
+        const rawRatio = r.after_hours_ratio || 0;
+        const ahDisplay = `<span class="${Number(rawRatio) > 0.5 ? 'text-danger fw-bold' : ''}">
+                          ${rawEvents} <small class="text-muted fw-normal">(r: ${Number(rawRatio).toFixed(2)})</small>
+                         </span>`;
+
+        let devText = [];
+        if (Number(r.z_user_file_ops_30d) > 2) devText.push("File Ops");
+        if (Number(r.z_user_failed_logon_30d) > 2) devText.push("Login Fail");
+        if (devText.length === 0) devText.push("-");
+
+        tr.innerHTML = `
+        <td class="ps-3 fw-bold text-secondary">${dStr}</td>
+        <td><span class="badge ${r._score > 0.5 ? 'bg-danger' : 'bg-secondary'}">${(r._score ?? 0).toFixed(4)}</span></td>
+        <td class="small text-muted text-truncate" style="max-width: 150px;">${r._behavior || "-"}</td>
+        <td>${r.failed_logon || 0}</td>
+        <td>${r.http_count || 0}</td>
+        <td>${r.file_ops || 0}</td>
+        <td>${r.file_delete_count || 0}</td>
+        <td>${ahDisplay}</td> 
+        <td class="small text-primary fst-italic">${devText.join(", ")}</td>
+        <td class="text-center">
+          <button class="btn btn-sm btn-outline-primary py-0 px-2 btn-view-full" title="Xem full features">
+              <i class="fa-solid fa-eye"></i>
+          </button>
+        </td>
+      `;
+
+        tr.addEventListener("click", function (e) {
+          if (e.target.closest('.btn-view-full')) return;
+          const allTr = tbody.querySelectorAll("tr");
+          allTr.forEach(t => t.classList.remove("table-active-custom"));
+          this.classList.add("table-active-custom");
+          renderUserDetailView(r, rowsAll);
+        });
+
+        const btnView = tr.querySelector(".btn-view-full");
+        btnView.addEventListener("click", function () {
+          showFullFeatureModal(r);
+        });
+
+        tbody.appendChild(tr);
+      });
+    }
+
+    // ===== ALERT TAB =====
+    function getFiltersAlerts() {
+      const userSel = document.getElementById("userFilter_al").value;
+      const sDateStr = document.getElementById("startDate_al").value;
+      const eDateStr = document.getElementById("endDate_al").value;
+      const topK = Number(document.getElementById("topK_al").value || 50);
+      const sDate = sDateStr ? new Date(sDateStr) : null;
+      const eDate = eDateStr ? new Date(eDateStr) : null;
+      return { userSel, sDate, eDate, topK };
+    }
+
+    function explainAlertRow(row) {
+      const toNum = v => (v === undefined || v === null || v === "" ? 0 : Number(v));
+      const parts = [];
+      const http_cnt = toNum(row.http_count);
+      const file_ops = toNum(row.file_ops);
+      const file_del = toNum(row.file_delete_count);
+      const failed_logon = toNum(row.failed_logon);
+      const after_ratio = toNum(row.after_hours_ratio);
+      const after_ev = toNum(row.after_hours_events);
+
+      if (file_del >= 10) {
+        parts.push(`Xoá ${file_del} file trong 1 ngày (mass file delete).`);
+      }
+      if (file_ops >= 200) {
+        parts.push(`Truy cập ${file_ops} file trong 1 ngày (mass file access).`);
+      }
+      if (failed_logon >= 5) {
+        parts.push(`Có ${failed_logon} lần đăng nhập thất bại (brute-force / dò mật khẩu).`);
+      }
+      if (http_cnt >= 150) {
+        parts.push(`HTTP request cao bất thường: ${http_cnt} request/ngày.`);
+      }
+      if (after_ratio >= 0.5 || after_ev >= 5) {
+        parts.push(
+          `Hoạt động ngoài giờ nhiều (after_hours_ratio=${after_ratio.toFixed(
+            2
+          )}, sự kiện ngoài giờ=${after_ev}).`
+        );
+      }
+      if (!parts.length) {
+        parts.push("Score cao so với baseline của user và các user khác trong hệ thống.");
+      }
+      return parts.join(" ");
+    }
+
+    function buildSocBadge(row, dateStr) {
+      const user = (row.user || "").toUpperCase().trim();
+      const key = `${user}|${dateStr}`;
+      const fb = socFeedbackMap.get(key);
+      if (!fb || fb.soc_tag === undefined) return "-";
+
+      const tag = Number(fb.soc_tag);
+      let label = "Unknown";
+      let cls = "badge bg-secondary";
+      if (tag === 0) {
+        label = "Normal / FP";
+        cls = "badge bg-success-subtle text-success";
+      } else if (tag === 1) {
+        label = "Suspicious";
+        cls = "badge bg-warning-subtle text-warning";
+      } else if (tag === 2) {
+        label = "Confirmed";
+        cls = "badge bg-danger-subtle text-danger";
+      }
+      return `<span class="${cls}">${label}</span>`;
+    }
+
+    function refreshAlertsTab() {
+      if (!mergedRows.length) return;
+      const { userSel, sDate, eDate, topK } = getFiltersAlerts();
+
+      let filtered = mergedRows.filter(r => r._severity !== "Normal");
+      filtered = filtered.filter(r => {
+        if (!r._dateObj) return false;
+        if (userSel !== "__ALL__" && (r.user || "").trim() !== userSel) return false;
+        if (sDate && r._dateObj < sDate) return false;
+        if (eDate && r._dateObj > eDate) return false;
+        return true;
+      });
+
+      filtered.sort((a, b) => b._score - a._score);
+      const top = filtered.slice(0, topK);
+
+      const tbody = document.getElementById("alertsTableBody");
+      tbody.innerHTML = "";
+
+      top.forEach((r, idx) => {
+        const user = (r.user || "").trim();
+        const dateStr = r._dateObj ? r._dateObj.toISOString().slice(0, 10) : (r.date || "");
+        const sev = r._severity;
+        const behavior = r._behavior || "normal";
+
+        const socHtml = buildSocBadge(r, dateStr);
+
+        const tr = document.createElement("tr");
+        tr.classList.add("alert-row");
+        tr.dataset.user = user;
+        tr.dataset.date = dateStr;
+        tr.dataset.score = r._score;
+        tr.dataset.severity = sev;
+        tr.dataset.behavior = behavior;
+        tr.dataset.http = r.http_count || 0;
+        tr.dataset.fileOps = r.file_ops || 0;
+        tr.dataset.failLogon = r.failed_logon || 0;
+        tr.dataset.afterRatio = r.after_hours_ratio || 0;
+
+        tr.innerHTML = `
+        <td>${idx + 1}</td>
+        <td>${user}</td>
+        <td>${dateStr}</td>
+        <td>${r._score.toFixed(4)}</td>
+        <td>${sev}</td>
+        <td>${behavior}</td>
+        <td>${r.department || ""}</td>
+        <td>${r.role || ""}</td>
+        <td>${r.http_count || 0}</td>
+        <td>${r.file_ops || 0}</td>
+        <td>${r.failed_logon || 0}</td>
+        <td>${r.after_hours_ratio ?? ""}</td>
+        <td>${socHtml}</td>
+      `;
+
+        tr.addEventListener("click", () => openAlertDetailModal(tr, r));
+        tbody.appendChild(tr);
+      });
+    }
+
+    function updateModalRadar(row) {
+      const ctx = document.getElementById("modalRadarChart").getContext("2d");
+      const toNum = v => (v === undefined || v === null || v === "" ? 0 : Number(v));
+
+      const featureConfig = [
+        { key: "z_user_file_ops_30d", label: "File Access" },
+        { key: "z_user_http_count_30d", label: "Web Traffic" },
+        { key: "z_user_failed_logon_30d", label: "Login Fail" },
+        { key: "z_user_after_hours_ratio_30d", label: "After Hours" },
+        { key: "z_user_file_delete_count_30d", label: "File Delete" },
+        { key: "z_user_device_ops_30d", label: "USB Usage" }
+      ];
+
+      let scores = featureConfig.map(conf => ({
+        label: conf.label,
+        value: Math.max(0, toNum(row[conf.key]))
+      }));
+
+      scores.sort((a, b) => b.value - a.value);
+      const top = scores.slice(0, 5);
+
+      const labels = top.map(x => x.label);
+      const data = top.map(x => x.value);
+
+      const BASELINE_LEVEL = 1.0;
+      const baselineData = new Array(top.length).fill(BASELINE_LEVEL);
+
+      if (modalRadarInstance) modalRadarInstance.destroy();
+
+      modalRadarInstance = new Chart(ctx, {
+        type: "radar",
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: "Hôm nay (Z-score)",
+              data: data,
+              fill: true,
+              backgroundColor: "rgba(220, 38, 38, 0.20)",
+              borderColor: "#dc2626",
+              borderWidth: 2,
+              pointBackgroundColor: "#dc2626"
+            },
+            {
+              label: "Baseline",
+              data: baselineData,
+              fill: false,
+              borderColor: "#10b981",
+              borderWidth: 2,
+              borderDash: [5, 4],
+              pointRadius: 0
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            r: {
+              suggestedMin: 0,
+              suggestedMax: Math.max(3, ...data, BASELINE_LEVEL + 0.5),
+              grid: { color: "#e5e7eb" },
+              angleLines: { color: "#e5e7eb" },
+              ticks: {
+                display: true,
+                stepSize: 1,
+                backdropColor: "transparent"
+              }
+            }
+          },
+          plugins: {
+            legend: { position: "bottom" }
+          }
+        }
+      });
+    }
+
+
+    function updateModalBaseline(row) {
+      const user = (row.user || "").trim();
+      const dateObj = row._dateObj;
+
+      const history = mergedRows.filter(r =>
+        (r.user || "").trim() === user && r._dateObj < dateObj
+      ).slice(-30);
+
+      const baselineSource = history.length ? history : [row];
+      const tbody = document.getElementById("modalBaselineBody");
+      tbody.innerHTML = "";
+
+      const toNum = (r, k) => (r[k] === undefined || r[k] === "") ? 0 : Number(r[k]);
+
+      const metrics = [
+        { key: "file_ops", label: "Files Access" },
+        { key: "file_delete_count", label: "Files Deleted" },
+        { key: "failed_logon", label: "Logon Fail" },
+        { key: "http_count", label: "Web Requests" },
+        { key: "after_hours_events", label: "After Hrs (Evt)" },
+        { key: "device_ops", label: "USB Usage" },
+        { key: "unique_pc", label: "Unique PC" },
+        { key: "rare_domain_count", label: "Rare Domain" }
+      ];
+
+      metrics.forEach(m => {
+        const sum = baselineSource.reduce((acc, r) => acc + toNum(r, m.key), 0);
+        const avg = sum / baselineSource.length;
+        const current = toNum(row, m.key);
+
+        let evalHtml = '<span class="text-muted text-opacity-50">=</span>';
+        let rowCls = "";
+
+        if (current > avg * 2 && current > 0) {
+          const x = avg === 0 ? current : (current / avg);
+          if (x > 1.5 || current > 5) {
+            evalHtml = `<strong class="text-danger">x${x.toFixed(1)}</strong>`;
+            rowCls = "table-danger";
+          }
+        } else if (current > avg * 1.3 && current > 0) {
+          evalHtml = `<span class="text-warning fw-bold">High</span>`;
+        }
+
+        tbody.innerHTML += `
+        <tr class="${rowCls}">
+          <td class="fw-semibold text-secondary">${m.label}</td>
+          <td class="text-end text-muted font-monospace">${avg.toFixed(1)}</td>
+          <td class="text-end fw-bold font-monospace">${current}</td>
+          <td class="text-center small">${evalHtml}</td>
+        </tr>
+      `;
+      });
+    }
+
+    // ============================================================
+    // HÀM MỞ MODAL CHI TIẾT ALERT (BẢN FULL, DÙNG DEPARTMENT + MULTI-BADGE)
+    // ============================================================
+    function openAlertDetailModal(tr, row) {
+      // 1. Lấy dữ liệu từ <tr> (dataset đã set ở refreshAlertsTab)
+      const user = tr.dataset.user || "--";
+      const dateStr = tr.dataset.date || "--";
+      const score = Number(tr.dataset.score || 0);
+      const sev = tr.dataset.severity || "Normal";
+      const behavior = tr.dataset.behavior || "normal";
+
+      // 2. Đổ thông tin cơ bản vào card "Đối tượng"
+      document.getElementById("detailUser").textContent = user;
+      document.getElementById("detailDate").textContent = dateStr;
+
+      // Score + màu sắc
+      const scoreEl = document.getElementById("detailScore");
+      scoreEl.textContent = score.toFixed(4);
+      scoreEl.className = score > 0.5
+        ? "fw-bold text-danger fs-5"
+        : "fw-bold text-warning fs-5";
+
+      // Severity (High / Medium / Low / Normal)
+      document.getElementById("detailSeverity").textContent = sev;
+
+      // Department (chỉ dùng department, bỏ role)
+      const dept = row.department || row.dept || "";
+      document.getElementById("detailDept").textContent = dept || "--";
+
+      // 3. Phân loại hành vi: tách thành nhiều badge
+      const bhContainer = document.getElementById("detailBehavior");
+      bhContainer.innerHTML = "";  // Xóa nội dung cũ
+
+      (behavior || "normal")
+        .split("|")
+        .map(b => b.trim())
+        .filter(b => b.length > 0)
+        .forEach(tag => {
+          const badge = document.createElement("span");
+          badge.className = "badge bg-dark text-white me-1 mb-1";
+          badge.textContent = tag;
+          bhContainer.appendChild(badge);
+        });
+
+      // 4. Giải thích tự động (box vàng: "Phân tích từ mô hình UEBA")
+      if (typeof explainAlertRow === "function") {
+        document.getElementById("detailExplanation").textContent =
+          explainAlertRow(row);
+      }
+
+      // 5. Load SOC feedback nếu có (để set dropdown + note)
+      const key = `${user.toUpperCase()}|${dateStr}`;
+      currentAlertKey = key;
+      const fb = socFeedbackMap.get(key);
+
+      if (fb) {
+        document.getElementById("socDecision").value = fb.soc_tag ?? 0;
+        document.getElementById("socNote").value = fb.soc_note || "";
+      } else {
+        // Mặc định: đánh dấu là "Suspicious" (1) nếu chưa review
+        document.getElementById("socDecision").value = 1;
+        document.getElementById("socNote").value = "";
+      }
+
+      // 6. Gắn lại event cho các nút để tránh nhân lên nhiều lần
+
+      // 6.1. Nút "Full Features"
+      const btnFullOld = document.getElementById("btnViewFullFeat");
+      const btnFullNew = btnFullOld.cloneNode(true);
+      btnFullOld.parentNode.replaceChild(btnFullNew, btnFullOld);
+
+      btnFullNew.addEventListener("click", () => {
+        if (typeof showFullFeatureModal === "function") {
+          showFullFeatureModal(row);
+        }
+      });
+
+      // 6.2. Nút "Xem Logs" – nhảy sang tab Log Viewer
+      const btnLogOld = document.getElementById("btnJumpToLogs");
+      const btnLogNew = btnLogOld.cloneNode(true);
+      btnLogOld.parentNode.replaceChild(btnLogNew, btnLogOld);
+
+      btnLogNew.addEventListener("click", () => {
+        if (typeof jumpToLogViewer === "function") {
+          jumpToLogViewer(user, dateStr);
+        } else {
+          console.warn("Chưa định nghĩa jumpToLogViewer");
+        }
+      });
+
+      // 6.3. Nút "Lưu kết quả" (SOC review)
+      const btnSave = document.getElementById("saveSocBtn");
+      btnSave.onclick = () => {
+        // Lưu theo user UPPER + dateStr
+        saveSocFeedback(user.toUpperCase(), dateStr);
+      };
+
+      // 7. Mở modal
+      const modalEl = document.getElementById("alertDetailModal");
+      const modal = new bootstrap.Modal(modalEl);
+      modal.show();
+
+      // 8. Vẽ radar + bảng baseline bên phải (đợi modal render xong)
+      setTimeout(() => {
+        if (typeof updateModalRadar === "function") {
+          updateModalRadar(row);
+        }
+        if (typeof updateModalBaseline === "function") {
+          updateModalBaseline(row);
+        }
+      }, 200);
+    }
+
+
+    function jumpToLogViewer(user, dateStr) {
+      const modalEl = document.getElementById("alertDetailModal");
+      const modal = bootstrap.Modal.getInstance(modalEl);
+      if (modal) modal.hide();
+
+      const logTabBtn = document.querySelector('button[data-tab="tabLogs"]');
+      if (logTabBtn) logTabBtn.click();
+
+      const userFilter = document.getElementById("logUserFilter");
+      const dateFilter = document.getElementById("logDateFilter");
+
+      if (userFilter) userFilter.value = user;
+      if (dateFilter) dateFilter.value = dateStr;
+
+      setTimeout(() => {
+        refreshLogViewer();
+      }, 100);
+    }
+
+    // ===== LOG VIEWER =====
+    function initLogFilters() {
+      if (logFiltersInitialized || !mergedRows.length) return;
+
+      const users = Array.from(
+        new Set(
+          mergedRows.map(r => (r.user || "").trim()).filter(Boolean)
+        )
+      ).sort();
+
+      const userSel = document.getElementById("logUserFilter");
+      userSel.innerHTML = '<option value="">(Tất cả)</option>';
+      users.forEach(u => {
+        const opt = document.createElement("option");
+        opt.value = opt.textContent = u;
+        userSel.appendChild(opt);
+      });
+
+      logFiltersInitialized = true;
+    }
+
+    async function refreshLogViewer() {
+      initLogFilters();
+
+      const user = document.getElementById("logUserFilter").value || "";
+      const date = document.getElementById("logDateFilter").value || "";
+      const evt = document.getElementById("logEventFilter").value || "";
+
+      const params = new URLSearchParams();
+      if (user) params.append("user", user);
+      if (date) params.append("date", date);
+      if (evt) params.append("event_type", evt);
+      params.append("limit", "500");
+
+      const url = `/api/logs?${params.toString()}`;
+
+      try {
+        const resp = await fetch(url);
+        const data = await resp.json();
+        if (!data.success) {
+          console.error("API logs error:", data.error);
+          renderLogTable([]);
+          return;
+        }
+        renderLogTable(data.rows || []);
+      } catch (err) {
+        console.error("Fetch logs failed:", err);
+        renderLogTable([]);
+      }
+    }
+
+    function renderLogTable(rows) {
+      const tbl = document.getElementById("logViewerTable");
+      const head = document.getElementById("logViewerHead");
+      const body = document.getElementById("logViewerBody");
+      const empty = document.getElementById("logViewerEmpty");
+
+      head.innerHTML = "";
+      body.innerHTML = "";
+
+      if (!rows.length) {
+        tbl.style.display = "none";
+        empty.style.display = "block";
+        logRowsCurrent = [];
+        logColsCurrent = [];
+        return;
+      }
+
+      let cols = Object.keys(rows[0]);
+
+      cols = cols.sort((a, b) => {
+        const ia = preferredLogColumnOrder.indexOf(a);
+        const ib = preferredLogColumnOrder.indexOf(b);
+        if (ia === -1 && ib === -1) return a.localeCompare(b);
+        if (ia === -1) return 1;
+        if (ib === -1) return -1;
+        return ia - ib;
+      });
+
+      logColsCurrent = cols;
+      logRowsCurrent = rows.slice();
+
+      const trHead = document.createElement("tr");
+      cols.forEach(colName => {
+        const th = document.createElement("th");
+        th.textContent = colName;
+        th.classList.add("sortable-header");
+        th.style.cursor = "pointer";
+
+        const span = document.createElement("span");
+        span.classList.add("sort-indicator");
+        span.style.marginLeft = "4px";
+        th.appendChild(span);
+
+        th.addEventListener("click", () => {
+          sortLogByColumn(colName);
+        });
+
+        trHead.appendChild(th);
+      });
+      head.appendChild(trHead);
+
+      renderLogTableBody();
+      empty.style.display = "none";
+      tbl.style.display = "table";
+    }
+
+    function renderLogTableBody() {
+      const body = document.getElementById("logViewerBody");
+      body.innerHTML = "";
+
+      logRowsCurrent.forEach(r => {
+        const tr = document.createElement("tr");
+        logColsCurrent.forEach(c => {
+          const td = document.createElement("td");
+          let v = r[c];
+          if (v === null || v === undefined) v = "";
+          v = String(v);
+          if (v.length > 120) v = v.slice(0, 120) + "…";
+          td.textContent = v;
+          tr.appendChild(td);
+        });
+        body.appendChild(tr);
+      });
+
+      updateLogHeaderSortIcons();
+    }
+
+    function sortLogByColumn(colName) {
+      if (!logColsCurrent.length || !logRowsCurrent.length) return;
+
+      if (logSortState.col === colName) {
+        logSortState.asc = !logSortState.asc;
+      } else {
+        logSortState.col = colName;
+        logSortState.asc = false;
+      }
+
+      const asc = logSortState.asc;
+
+      logRowsCurrent.sort((a, b) => {
+        let va = a[colName];
+        let vb = b[colName];
+
+        if (va === null || va === undefined) va = "";
+        if (vb === null || vb === undefined) vb = "";
+
+        const na = parseFloat(va);
+        const nb = parseFloat(vb);
+        const aIsNum = !isNaN(na) && isFinite(na);
+        const bIsNum = !isNaN(nb) && isFinite(nb);
+
+        let cmp;
+        if (aIsNum && bIsNum) {
+          cmp = na - nb;
+        } else {
+          cmp = String(va).localeCompare(String(vb));
+        }
+        return asc ? cmp : -cmp;
+      });
+
+      renderLogTableBody();
+    }
+
+    function updateLogHeaderSortIcons() {
+      const head = document.getElementById("logViewerHead");
+      const ths = head.querySelectorAll("th");
+
+      ths.forEach((th, idx) => {
+        const colName = logColsCurrent[idx];
+        const span = th.querySelector(".sort-indicator");
+        if (!span) return;
+
+        if (logSortState.col === colName) {
+          span.textContent = logSortState.asc ? "▲" : "▼";
+        } else {
+          span.textContent = "";
+        }
+      });
+    }
+
+    // ===== NAVIGATION TABS =====
+    function initTabs() {
+      const buttons = document.querySelectorAll(".tab-big");
+      buttons.forEach(btn => {
+        btn.addEventListener("click", () => {
+          buttons.forEach(b => b.classList.remove("active"));
+          btn.classList.add("active");
+          const tabId = btn.getAttribute("data-tab");
+          document.querySelectorAll(".tab-pane").forEach(pane => {
+            if (pane.id === tabId) pane.classList.remove("d-none");
+            else pane.classList.add("d-none");
+          });
+
+          if (tabId === "tabOverview") {
+            refreshOverview();
+          } else if (tabId === "tabUser") {
+            refreshUserTab();
+          } else if (tabId === "tabAlerts") {
+            refreshAlertsTab();
+          } else if (tabId === "tabLogs") {
+            refreshLogViewer();
+          }
+        });
+      });
+    }
+
+    // ===== GLOBAL REFRESH =====
+    function refreshAll() {
+      refreshOverview();
+      refreshUserTab();
+      refreshAlertsTab();
+      refreshLogViewer();
+    }
+
+    // ===== INIT MAIN =====
+    document.addEventListener("DOMContentLoaded", async () => {
+      initTabs();
+      initTopKSorting();
+
+
+      try {
+        await loadAllData();
+        await loadSocFeedback();
+        initAllFilters();
+        refreshAll();
+
+        // OVERVIEW filter events
+        document.getElementById("userFilter_ov").addEventListener("change", refreshOverview);
+        document.getElementById("startDate_ov").addEventListener("change", refreshOverview);
+        document.getElementById("endDate_ov").addEventListener("change", refreshOverview);
+        document.getElementById("topK_ov").addEventListener("change", refreshOverview);
+
+        // USER tab filter events
+        document.getElementById("userFilter_user").addEventListener("change", refreshUserTab);
+        document.getElementById("startDate_user").addEventListener("change", refreshUserTab);
+        document.getElementById("endDate_user").addEventListener("change", refreshUserTab);
+
+        // ALERT tab filter events
+        document.getElementById("userFilter_al").addEventListener("change", refreshAlertsTab);
+        document.getElementById("startDate_al").addEventListener("change", refreshAlertsTab);
+        document.getElementById("endDate_al").addEventListener("change", refreshAlertsTab);
+        document.getElementById("topK_al").addEventListener("change", refreshAlertsTab);
+
+        // LOG tab filter events
+        document.getElementById("btnReloadLogs").addEventListener("click", refreshLogViewer);
+        document.getElementById("logUserFilter").addEventListener("change", refreshLogViewer);
+        document.getElementById("logDateFilter").addEventListener("change", refreshLogViewer);
+        document.getElementById("logEventFilter").addEventListener("change", refreshLogViewer);
+
+        // Nút refresh chung
+        document.getElementById("refreshBtn").addEventListener("click", refreshAll);
+
+        // Nút chạy pipeline
+        document.getElementById("runPipelineBtn").addEventListener("click", async () => {
+          const btn = document.getElementById("runPipelineBtn");
+          btn.disabled = true;
+          const oldText = btn.innerHTML;
+          btn.innerHTML = '<i class="fa-solid fa-gears fa-spin"></i> Đang chạy...';
+
+          try {
+            const resp = await fetch("/run_pipeline", { method: "POST" });
+            if (!resp.ok) {
+              alert("Không gọi được API /run_pipeline (HTTP " + resp.status + ")");
+            } else {
+              const data = await resp.json();
+              if (data.success) {
+                alert("✅ Pipeline chạy xong. Đang load dữ liệu mới…");
+                await loadAllData();
+                await loadSocFeedback();
+                initAllFilters();
+                refreshAll();
+              } else {
+                alert("❌ Pipeline lỗi. Xem log trong demo_api.py (terminal).");
+                console.log(data);
+              }
+            }
+          } catch (e) {
+            console.error(e);
+            alert("❌ Lỗi khi gọi /run_pipeline. Kiểm tra demo_api.py có chạy không.");
+          } finally {
+            btn.disabled = false;
+            btn.innerHTML = oldText;
+          }
+        });
+
+        // Auto 5 phút gọi pipeline
+        const FIVE_MINUTES = 5 * 60 * 1000;
+        setInterval(async () => {
+          try {
+            const resp = await fetch("/run_pipeline", { method: "POST" });
+            if (!resp.ok) return;
+            const data = await resp.json();
+            if (data.success) {
+              await loadAllData();
+              await loadSocFeedback();
+              initAllFilters();
+              refreshAll();
+            }
+          } catch (e) {
+            console.warn("[AUTO] Lỗi khi gọi /run_pipeline:", e);
+          }
+        }, FIVE_MINUTES);
+
+      } catch (e) {
+        console.error(e);
+        alert("Lỗi khi load dữ liệu CSV. Kiểm tra lại đường dẫn trong index.html.");
+      }
+    });
+  </script>
+
+</body>
+
+</html>
